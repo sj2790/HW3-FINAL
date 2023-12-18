@@ -1,0 +1,38 @@
+Part 2
+First of all, I deleted all unsafe monitoring of data in our codebase. More specifically, I spotted that there is unwanted monitoring activity in the views.py file within the GiftcardSite folder. I noticed that this has been implemented for all of the functions. I also saw that in the register_view function in that same views.py file, the password is being given in the prometheus monitoring code. The code below prints {pword} (password) and it can be noticed in monitoring. In order to delete it, I simply commented the following code:
+if pword not in graphs.keys():                                               
+      graphs[pword] = Counter(f'counter_{pword}', 'The total number of '\  + f'times {pword} was used')                                            
+  graphs[pword].inc()                                                           
+Secondly, I made a counter for prometheus in order to expand on the monitoring activity. More specifically, I added a prometheus counter that counts every time we return a 404 error message in the views.py file. These errors are being triggered by database errors. In order to do this successfully, in the views.py file, I added this counter with the following lines of code:
+graphs['database_error_return_404'] = Counter('database_error_return_404', 'The total number'\ + ' of times 404 error message is returned.')
+After I created the counter, I had to had to add an incrementation method that increases the total count value each time it encounters a database error 404 message, and I added this in two places in the code with the following line:
+graphs['database_error_return_404'].inc()
+Thirdly, I added Prometheus with helm. So firstly, I installed the helm package manager with choco in powershell. Afterwards, I installed Prometheus with the following commands:
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+helm install prometheus prometheus-community/prometheus
+helm install -f prometheus.yaml prometheus prometheus-community/prometheus
+In order to verify the active Prometheus pods and services, I ran the the commands below and checked their states:
+minikube service list
+kubectl get pods
+I got the following outputs through which I verified the service: all pods were properly running as shown below.
+assignment3-django-deploy: Running   
+mysql-container: Running    
+prometheus-alertmanager: Running   
+prometheus-kube-state-metrics: Running   
+prometheus-node-exporter: Running   
+prometheus-pushgateway: Running   
+prometheus-server: Running   
+proxy: Running   
+Afterwards, I got the configmaps of Prometheus and I used the following commands for this:
+kubectl get cm → this command shows the configmaps prometheus-alertmanager and prometheus-server in the following way:
+kube-root-ca.crt          
+prometheus-alertmanager   
+prometheus-server      
+Afterwards, I added Prometheus to the configmaps to the cluster and the giftcard website with the proxy service. I did this by updating the "prometheus-server" configmap with the following command:
+kubectl edit configmap prometheus-server
+Next, upon opening the configmap prometheus-server, I had to modify the access of this from localhost:9090 to proxy-service:8080 by which we can use both the giftcard site and the cluster. I did this modification with "static_configs: targets:" in configmap. Then I exported the data from both configmaps to yaml file. You can find all the files that I am referring to in my part2 folder. As described above, I got the output of both configmaps by running the respective commands listed below and I then copy pasted the output in two new yaml files.
+For the prometheus-alertmanager.yaml file: kubectl get configmap prometheus-alertmanager -o yaml
+For the prometheus-server.yaml file: kubectl get configmap prometheus-server -o yaml            
+Lastly, I began with port forwarding to 8080 port by running the command below. Then I went to our giftcard site 127.0.0.1:8080 to start Prometheus and monitoring. There we get the prometheus portal where we can start monitoring. The command which I mentioned goes as following:
+kubectl port-forward deployment/prometheus-server 8080:8080
